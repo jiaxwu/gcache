@@ -29,7 +29,7 @@ func TestGroup_Get(t *testing.T) {
 			loadCounts[key]++
 			return []byte(v), nil
 		}
-		return nil, fmt.Errorf("%s does not exists\n", key)
+		return nil, fmt.Errorf("%s does not exists", key)
 	}))
 
 	for k, v := range db {
