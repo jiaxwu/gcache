@@ -2,6 +2,7 @@ package gcache
 
 import (
 	"fmt"
+	"golang.org/x/sync/singleflight"
 	"log"
 	"sync"
 )
@@ -24,6 +25,8 @@ type Group struct {
 	mainCache cache
 	// 用于获取远程节点请求客户端
 	peers PeerPicker
+	// 避免对同一个key多次加载
+	loader *singleflight.Group
 }
 
 var (
@@ -46,6 +49,7 @@ func NewGroup(name string, cacheBytes int, getter Getter) *Group {
 		mainCache: cache{
 			cacheBytes: cacheBytes,
 		},
+		loader: &singleflight.Group{},
 	}
 	groups[name] = g
 	return g
@@ -81,18 +85,24 @@ func (g *Group) Get(key string) (ByteView, error) {
 
 // 加载缓存
 func (g *Group) load(key string) (ByteView, error) {
-	// 先判断是否需要从远程加载
-	if g.peers != nil {
-		if peer, ok := g.peers.PickPeer(key); ok {
-			value, err := g.loadFromPeer(peer, key)
-			if err == nil {
-				return value, nil
+	view, err, _ := g.loader.Do(key, func() (interface{}, error) {
+		// 先判断是否需要从远程加载
+		if g.peers != nil {
+			if peer, ok := g.peers.PickPeer(key); ok {
+				value, err := g.loadFromPeer(peer, key)
+				if err == nil {
+					return value, nil
+				}
+				log.Printf("[Cache] failed to get from peer key=%s, err=%v\n", key, err)
 			}
-			log.Printf("[Cache] failed to get from peer key=%s, err=%v\n", key, err)
 		}
+		// 否则从本地加载
+		return g.loadLocally(key)
+	})
+	if err != nil {
+		return ByteView{}, err
 	}
-	// 否则从本地加载
-	return g.loadLocally(key)
+	return view.(ByteView), nil
 }
 
 // 从本地节点加载缓存值

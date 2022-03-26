@@ -6,6 +6,7 @@ import (
 	"github.com/jiaxwu/gcache"
 	"log"
 	"net/http"
+	"time"
 )
 
 var db = map[string]string{
@@ -33,6 +34,7 @@ func main() {
 	// 创建本地group
 	g := gcache.NewGroup("scores", 2<<10, gcache.GetterFunc(func(key string) ([]byte, error) {
 		log.Println("[SlowDB] search key", key)
+		time.Sleep(time.Second)
 		if v, ok := db[key]; ok {
 			return []byte(v), nil
 		}
