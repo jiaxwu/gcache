@@ -32,13 +32,13 @@ func main() {
 	flag.Parse()
 
 	// 创建本地group
-	g := gcache.NewGroup("scores", 2<<10, gcache.GetterFunc(func(key string) ([]byte, error) {
+	g := gcache.NewGroup("scores", 2<<10, gcache.GetterFunc(func(key string) (gcache.ByteView, error) {
 		log.Println("[SlowDB] search key", key)
 		time.Sleep(time.Second)
 		if v, ok := db[key]; ok {
-			return []byte(v), nil
+			return gcache.NewByteView([]byte(v), time.Now().Add(time.Minute)), nil
 		}
-		return nil, fmt.Errorf("%s does not exist", key)
+		return gcache.ByteView{}, fmt.Errorf("%s does not exist", key)
 	}))
 
 	// 启动api服务器

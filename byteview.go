@@ -1,8 +1,18 @@
 package gcache
 
+import "time"
+
 // ByteView 一个不可变的字节数组视图
 type ByteView struct {
-	b []byte
+	b      []byte
+	expire time.Time
+}
+
+func NewByteView(b []byte, expire time.Time) ByteView {
+	return ByteView{
+		b:      b,
+		expire: expire,
+	}
 }
 
 func (v ByteView) Len() int {

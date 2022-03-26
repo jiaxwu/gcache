@@ -18,7 +18,7 @@ func (c *cache) add(key string, value ByteView) {
 	if c.lru == nil {
 		c.lru = lru.New(c.cacheBytes, nil)
 	}
-	c.lru.Add(key, value)
+	c.lru.Add(key, value, value.expire)
 }
 
 func (c *cache) get(key string) (ByteView, bool) {

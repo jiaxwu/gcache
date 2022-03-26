@@ -2,6 +2,7 @@ package lru
 
 import (
 	"testing"
+	"time"
 )
 
 type String string
@@ -13,7 +14,7 @@ func (s String) Len() int {
 func TestCache_Get(t *testing.T) {
 	lru := New(0, nil)
 	testKey, testValue := "key1", String("value1")
-	lru.Add(testKey, testValue)
+	lru.Add(testKey, testValue, time.Time{})
 	if value, ok := lru.Get(testKey); !ok || value.(String) != testValue {
 		t.Fatalf("cache hit %s:%s failed\n", testKey, testValue)
 	}
@@ -28,9 +29,9 @@ func TestCache_RemoveOldest(t *testing.T) {
 	v1, v2, v3 := String("value1"), String("value2"), String("value3")
 	capacity := len(k1) + len(k2) + v1.Len() + v2.Len()
 	lru := New(capacity, nil)
-	lru.Add(k1, v1)
-	lru.Add(k2, v2)
-	lru.Add(k3, v3)
+	lru.Add(k1, v1, time.Time{})
+	lru.Add(k2, v2, time.Time{})
+	lru.Add(k3, v3, time.Time{})
 
 	if _, ok := lru.Get(k1); ok || lru.Len() != 2 {
 		t.Fatalf("remove oldest %s:%s failed, len=%d\n", k1, v1, lru.Len())
@@ -42,9 +43,9 @@ func TestCache_Remove(t *testing.T) {
 	v1, v2, v3 := String("value1"), String("value2"), String("value3")
 	capacity := len(k1) + len(k2) + v1.Len() + v2.Len()
 	lru := New(capacity, nil)
-	lru.Add(k1, v1)
-	lru.Add(k2, v2)
-	lru.Add(k3, v3)
+	lru.Add(k1, v1, time.Time{})
+	lru.Add(k2, v2, time.Time{})
+	lru.Add(k3, v3, time.Time{})
 
 	if _, ok := lru.Get(k1); ok || lru.Len() != 2 {
 		t.Fatalf("remove oldest %s:%s failed, len=%d\n", k1, v1, lru.Len())
@@ -68,10 +69,31 @@ func TestCache_OnEvicted(t *testing.T) {
 		evictedKey = key
 		evictedValue = value
 	})
-	lru.Add(k1, v1)
-	lru.Add(k2, v2)
-	lru.Add(k3, v3)
+	lru.Add(k1, v1, time.Time{})
+	lru.Add(k2, v2, time.Time{})
+	lru.Add(k3, v3, time.Time{})
 	if value, ok := evictedValue.(String); !ok || evictedKey != k1 || value != v1 {
 		t.Fatalf("evicted failed; evicted key = %s, value = %s\n", evictedKey, value)
+	}
+}
+
+func TestCache_Expire(t *testing.T) {
+	k1, k2, k3 := "key1", "key2", "key3"
+	v1, v2, v3 := String("value1"), String("value2"), String("value3")
+	capacity := len(k1) + len(k2) + v1.Len() + v2.Len()
+	lru := New(capacity, nil)
+	lru.Add(k1, v1, time.Time{})
+	lru.Add(k2, v2, time.Now().Add(time.Second))
+	lru.Add(k3, v3, time.Time{})
+
+	if _, ok := lru.Get(k1); ok || lru.Len() != 2 {
+		t.Fatalf("remove oldest %s:%s failed, len=%d\n", k1, v1, lru.Len())
+	}
+	if _, ok := lru.Get(k2); !ok || lru.Len() != 2 {
+		t.Fatalf("get %s:%s failed, len=%d\n", k2, v2, lru.Len())
+	}
+	time.Sleep(time.Second)
+	if _, ok := lru.Get(k2); ok || lru.Len() != 1 {
+		t.Fatalf("expire %s:%s failed, len=%d\n", k2, v2, lru.Len())
 	}
 }

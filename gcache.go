@@ -10,12 +10,12 @@ import (
 
 // Getter 用于加载数据
 type Getter interface {
-	Get(key string) ([]byte, error)
+	Get(key string) (ByteView, error)
 }
 
-type GetterFunc func(key string) ([]byte, error)
+type GetterFunc func(key string) (ByteView, error)
 
-func (f GetterFunc) Get(key string) ([]byte, error) {
+func (f GetterFunc) Get(key string) (ByteView, error) {
 	return f(key)
 }
 
@@ -127,11 +127,10 @@ func (g *Group) load(key string) (ByteView, error) {
 
 // 从本地节点加载缓存值
 func (g *Group) loadLocally(key string) (ByteView, error) {
-	bytes, err := g.getter.Get(key)
+	value, err := g.getter.Get(key)
 	if err != nil {
 		return ByteView{}, err
 	}
-	value := ByteView{b: bytes}
 	g.populateCache(key, value)
 	return value, nil
 }

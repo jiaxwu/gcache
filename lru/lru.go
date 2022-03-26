@@ -2,6 +2,7 @@ package lru
 
 import (
 	"container/list"
+	"time"
 )
 
 // Cache LRU缓存
@@ -19,9 +20,11 @@ type Cache struct {
 type entry struct {
 	key   string
 	value Value
+	// 过期时间
+	expire time.Time
 }
 
-// Value 用于计算值占用了多少字节
+// Value 用于计算值占用了多少字节和过期时间
 type Value interface {
 	Len() int
 }
@@ -41,9 +44,14 @@ func (c *Cache) Get(key string) (Value, bool) {
 	if !ok {
 		return nil, false
 	}
+	ent := element.Value.(*entry)
+	// 移除过期的键
+	if !ent.expire.IsZero() && ent.expire.Before(time.Now()) {
+		c.removeElement(element)
+		return nil, false
+	}
 	c.ll.MoveToBack(element)
-	kv := element.Value.(*entry)
-	return kv.value, true
+	return ent.value, true
 }
 
 // RemoveOldest 移除最近最少访问的数据
@@ -55,7 +63,7 @@ func (c *Cache) RemoveOldest() {
 }
 
 // Add 添加数据到缓存
-func (c *Cache) Add(key string, value Value) {
+func (c *Cache) Add(key string, value Value, expire time.Time) {
 	if element, ok := c.cache[key]; ok {
 		c.ll.MoveToBack(element)
 		kv := element.Value.(*entry)
@@ -63,8 +71,9 @@ func (c *Cache) Add(key string, value Value) {
 		kv.value = value
 	} else {
 		element := c.ll.PushBack(&entry{
-			key:   key,
-			value: value,
+			key:    key,
+			value:  value,
+			expire: expire,
 		})
 		c.cache[key] = element
 		c.nBytes += len(key) + value.Len()

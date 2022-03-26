@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"log"
 	"testing"
+	"time"
 )
 
 func TestGetter(t *testing.T) {
-	var f Getter = GetterFunc(func(key string) ([]byte, error) {
-		return []byte(key), nil
+	var f Getter = GetterFunc(func(key string) (ByteView, error) {
+		return NewByteView([]byte(key), time.Time{}), nil
 	})
 	key1 := "key1"
-	if value, err := f.Get(key1); err != nil || string(value) != key1 {
+	if value, err := f.Get(key1); err != nil || value.String() != key1 {
 		t.Errorf("getter expect %s but %s\n", key1, value)
 	}
 }
@@ -23,13 +24,13 @@ func TestGroup_Get(t *testing.T) {
 		"Sam":  "567",
 	}
 	loadCounts := make(map[string]int, len(db))
-	g := NewGroup("scores", 2<<10, GetterFunc(func(key string) ([]byte, error) {
+	g := NewGroup("scores", 2<<10, GetterFunc(func(key string) (ByteView, error) {
 		log.Printf("[SlowDB] sear key %s\n", key)
 		if v, ok := db[key]; ok {
 			loadCounts[key]++
-			return []byte(v), nil
+			return NewByteView([]byte(v), time.Time{}), nil
 		}
-		return nil, fmt.Errorf("%s does not exists", key)
+		return ByteView{}, fmt.Errorf("%s does not exists", key)
 	}))
 
 	for k, v := range db {
