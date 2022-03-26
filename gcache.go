@@ -22,6 +22,8 @@ type Group struct {
 	name      string
 	getter    Getter
 	mainCache cache
+	// 用于获取远程节点请求客户端
+	peers PeerPicker
 }
 
 var (
@@ -56,6 +58,14 @@ func GetGroup(name string) *Group {
 	return groups[name]
 }
 
+// RegisterPeers 注册获取远程节点请求客户端的PeerPicker
+func (g *Group) RegisterPeers(peers PeerPicker) {
+	if g.peers != nil {
+		panic("register peer picker called more than once")
+	}
+	g.peers = peers
+}
+
 // Get 从缓存获取key对应的value
 func (g *Group) Get(key string) (ByteView, error) {
 	if key == "" {
@@ -71,6 +81,17 @@ func (g *Group) Get(key string) (ByteView, error) {
 
 // 加载缓存
 func (g *Group) load(key string) (ByteView, error) {
+	// 先判断是否需要从远程加载
+	if g.peers != nil {
+		if peer, ok := g.peers.PickPeer(key); ok {
+			value, err := g.loadFromPeer(peer, key)
+			if err == nil {
+				return value, nil
+			}
+			log.Printf("[Cache] failed to get from peer key=%s, err=%v\n", key, err)
+		}
+	}
+	// 否则从本地加载
 	return g.loadLocally(key)
 }
 
@@ -88,4 +109,13 @@ func (g *Group) loadLocally(key string) (ByteView, error) {
 // 发布到缓存
 func (g *Group) populateCache(key string, value ByteView) {
 	g.mainCache.add(key, value)
+}
+
+// 从远程加载缓存值
+func (g *Group) loadFromPeer(peer PeerGetter, key string) (ByteView, error) {
+	bytes, err := peer.Get(g.name, key)
+	if err != nil {
+		return ByteView{}, err
+	}
+	return ByteView{b: bytes}, nil
 }
