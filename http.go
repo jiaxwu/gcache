@@ -86,6 +86,14 @@ func (p *HTTPPool) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no such group: "+groupName, http.StatusNotFound)
 		return
 	}
+
+	// 删除键
+	if r.Method == http.MethodDelete {
+		group.removeLocally(key)
+		return
+	}
+
+	// 获取键
 	view, err := group.Get(key)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -106,8 +114,7 @@ type httpGetter struct {
 }
 
 func (h *httpGetter) Get(in *pb.Request, out *pb.Response) error {
-	u := fmt.Sprintf("%v%v/%v", h.baseURL, url.QueryEscape(in.GetGroup()), url.QueryEscape(in.GetKey()))
-	res, err := http.Get(u)
+	res, err := h.makeRequest(http.MethodGet, in)
 	if err != nil {
 		return err
 	}
@@ -123,4 +130,30 @@ func (h *httpGetter) Get(in *pb.Request, out *pb.Response) error {
 		return err
 	}
 	return nil
+}
+
+func (h *httpGetter) Remove(in *pb.Request) error {
+	res, err := h.makeRequest(http.MethodDelete, in)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("server returned: %v", res.Status)
+	}
+	return nil
+}
+
+func (h *httpGetter) makeRequest(method string, in *pb.Request) (*http.Response, error) {
+	u := fmt.Sprintf(
+		"%v%v/%v",
+		h.baseURL,
+		url.QueryEscape(in.GetGroup()),
+		url.QueryEscape(in.GetKey()),
+	)
+	req, err := http.NewRequest(method, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	return http.DefaultClient.Do(req)
 }

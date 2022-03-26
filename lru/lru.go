@@ -50,13 +50,7 @@ func (c *Cache) Get(key string) (Value, bool) {
 func (c *Cache) RemoveOldest() {
 	front := c.ll.Front()
 	if front != nil {
-		c.ll.Remove(front)
-		kv := front.Value.(*entry)
-		delete(c.cache, kv.key)
-		c.nBytes -= len(kv.key) + kv.value.Len()
-		if c.onEvicted != nil {
-			c.onEvicted(kv.key, kv.value)
-		}
+		c.removeElement(front)
 	}
 }
 
@@ -77,6 +71,24 @@ func (c *Cache) Add(key string, value Value) {
 	}
 	for c.maxBytes != 0 && c.nBytes > c.maxBytes {
 		c.RemoveOldest()
+	}
+}
+
+// Remove 移除某个键
+func (c *Cache) Remove(key string) {
+	if element, ok := c.cache[key]; ok {
+		c.removeElement(element)
+	}
+}
+
+// 移除某个键，并删除链表里面的节点，减少lru缓存大小，调用回调函数
+func (c *Cache) removeElement(e *list.Element) {
+	c.ll.Remove(e)
+	kv := e.Value.(*entry)
+	delete(c.cache, kv.key)
+	c.nBytes -= len(kv.key) + kv.value.Len()
+	if c.onEvicted != nil {
+		c.onEvicted(kv.key, kv.value)
 	}
 }
 

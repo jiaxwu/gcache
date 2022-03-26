@@ -32,3 +32,12 @@ func (c *cache) get(key string) (ByteView, bool) {
 	}
 	return ByteView{}, false
 }
+
+func (c *cache) remove(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.lru == nil {
+		return
+	}
+	c.lru.Remove(key)
+}

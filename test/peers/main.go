@@ -55,6 +55,16 @@ func main() {
 				w.Header().Set("Content-Type", "application/octet-stream")
 				w.Write(view.ByteSlice())
 			}))
+			http.Handle("/remove", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				key := r.URL.Query().Get("key")
+				err := g.Remove(key)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				w.Header().Set("Content-Type", "application/octet-stream")
+				w.Write([]byte("remove key " + key + " success"))
+			}))
 			log.Printf("api server is running at %s \n", apiServerAddr)
 			log.Fatalln(http.ListenAndServe(apiServerAddr, nil))
 		}()

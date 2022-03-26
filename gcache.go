@@ -27,7 +27,9 @@ type Group struct {
 	// 用于获取远程节点请求客户端
 	peers PeerPicker
 	// 避免对同一个key多次加载
-	loader *singleflight.Group
+	loadGroup *singleflight.Group
+	// 避免对同一个key多次删除
+	removeGroup *singleflight.Group
 }
 
 var (
@@ -50,7 +52,8 @@ func NewGroup(name string, cacheBytes int, getter Getter) *Group {
 		mainCache: cache{
 			cacheBytes: cacheBytes,
 		},
-		loader: &singleflight.Group{},
+		loadGroup:   &singleflight.Group{},
+		removeGroup: &singleflight.Group{},
 	}
 	groups[name] = g
 	return g
@@ -84,9 +87,25 @@ func (g *Group) Get(key string) (ByteView, error) {
 	return g.load(key)
 }
 
+// Remove 从缓存删除key
+func (g *Group) Remove(key string) error {
+	_, err, _ := g.loadGroup.Do(key, func() (interface{}, error) {
+		// 先判断是否需要从远程删除
+		if g.peers != nil {
+			if peer, ok := g.peers.PickPeer(key); ok {
+				return nil, g.removeFromPeer(peer, key)
+			}
+		}
+		// 否则从本地删除
+		g.removeLocally(key)
+		return nil, nil
+	})
+	return err
+}
+
 // 加载缓存
 func (g *Group) load(key string) (ByteView, error) {
-	view, err, _ := g.loader.Do(key, func() (interface{}, error) {
+	view, err, _ := g.loadGroup.Do(key, func() (interface{}, error) {
 		// 先判断是否需要从远程加载
 		if g.peers != nil {
 			if peer, ok := g.peers.PickPeer(key); ok {
@@ -117,12 +136,17 @@ func (g *Group) loadLocally(key string) (ByteView, error) {
 	return value, nil
 }
 
+// 从本地节点删除缓存
+func (g *Group) removeLocally(key string) {
+	g.mainCache.remove(key)
+}
+
 // 发布到缓存
 func (g *Group) populateCache(key string, value ByteView) {
 	g.mainCache.add(key, value)
 }
 
-// 从远程加载缓存值
+// 从远程节点加载缓存值
 func (g *Group) loadFromPeer(peer PeerGetter, key string) (ByteView, error) {
 	req := &pb.Request{
 		Group: g.name,
@@ -134,4 +158,13 @@ func (g *Group) loadFromPeer(peer PeerGetter, key string) (ByteView, error) {
 		return ByteView{}, err
 	}
 	return ByteView{b: res.Value}, nil
+}
+
+// 从远程节点删除缓存值
+func (g *Group) removeFromPeer(peer PeerGetter, key string) error {
+	req := &pb.Request{
+		Group: g.name,
+		Key:   key,
+	}
+	return peer.Remove(req)
 }
