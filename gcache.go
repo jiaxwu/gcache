@@ -2,6 +2,7 @@ package gcache
 
 import (
 	"fmt"
+	pb "github.com/jiaxwu/gcache/gcachepb"
 	"golang.org/x/sync/singleflight"
 	"log"
 	"sync"
@@ -123,9 +124,14 @@ func (g *Group) populateCache(key string, value ByteView) {
 
 // 从远程加载缓存值
 func (g *Group) loadFromPeer(peer PeerGetter, key string) (ByteView, error) {
-	bytes, err := peer.Get(g.name, key)
+	req := &pb.Request{
+		Group: g.name,
+		Key:   key,
+	}
+	var res pb.Response
+	err := peer.Get(req, &res)
 	if err != nil {
 		return ByteView{}, err
 	}
-	return ByteView{b: bytes}, nil
+	return ByteView{b: res.Value}, nil
 }

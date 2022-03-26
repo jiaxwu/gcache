@@ -1,8 +1,10 @@
 package gcache
 
+import pb "github.com/jiaxwu/gcache/gcachepb"
+
 // PeerGetter 远程客户端，根据group和key获取缓存
 type PeerGetter interface {
-	Get(group, key string) ([]byte, error)
+	Get(in *pb.Request, out *pb.Response) error
 }
 
 // PeerPicker 用于获取远程节点的请求客户端
