@@ -99,7 +99,14 @@ func (p *HTTPPool) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	body, err := proto.Marshal(&pb.Response{Value: view.ByteSlice()})
+	var expireNano int64
+	if !view.Expire().IsZero() {
+		expireNano = view.Expire().UnixNano()
+	}
+	body, err := proto.Marshal(&pb.Response{
+		Value:  view.ByteSlice(),
+		Expire: expireNano,
+	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

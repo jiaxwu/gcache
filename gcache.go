@@ -1,11 +1,13 @@
 package gcache
 
 import (
+	"errors"
 	"fmt"
 	pb "github.com/jiaxwu/gcache/gcachepb"
 	"golang.org/x/sync/singleflight"
 	"log"
 	"sync"
+	"time"
 )
 
 // Getter 用于加载数据
@@ -156,7 +158,14 @@ func (g *Group) loadFromPeer(peer PeerGetter, key string) (ByteView, error) {
 	if err != nil {
 		return ByteView{}, err
 	}
-	return ByteView{b: res.Value}, nil
+	var expire time.Time
+	if res.Expire != 0 {
+		expire = time.Unix(res.Expire/int64(time.Second), res.Expire%int64(time.Second))
+		if time.Now().After(expire) {
+			return ByteView{}, errors.New("peer returned expired value")
+		}
+	}
+	return ByteView{b: res.Value, expire: expire}, nil
 }
 
 // 从远程节点删除缓存值

@@ -15,6 +15,10 @@ func NewByteView(b []byte, expire time.Time) ByteView {
 	}
 }
 
+func (v ByteView) Expire() time.Time {
+	return v.expire
+}
+
 func (v ByteView) Len() int {
 	return len(v.b)
 }

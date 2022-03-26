@@ -53,7 +53,7 @@ func main() {
 					return
 				}
 				w.Header().Set("Content-Type", "application/octet-stream")
-				w.Write(view.ByteSlice())
+				w.Write([]byte(fmt.Sprintf("value: %s , expire: %v\n", view.ByteSlice(), view.Expire())))
 			}))
 			http.Handle("/remove", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				key := r.URL.Query().Get("key")
