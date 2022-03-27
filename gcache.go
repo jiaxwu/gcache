@@ -32,6 +32,8 @@ type Group struct {
 	loadGroup *singleflight.Group
 	// 避免对同一个key多次删除
 	removeGroup *singleflight.Group
+	// getter返回error时对应空值key的过期时间
+	emptyKeyDuration time.Duration
 }
 
 var (
@@ -74,6 +76,12 @@ func (g *Group) RegisterPeers(peers PeerPicker) {
 		panic("register peer picker called more than once")
 	}
 	g.peers = peers
+}
+
+// SetEmptyWhenError 当getter返回error时设置空值，缓解缓存穿透问题
+// 为0表示该机制不生效
+func (g *Group) SetEmptyWhenError(duration time.Duration) {
+	g.emptyKeyDuration = duration
 }
 
 // Get 从缓存获取key对应的value
@@ -131,7 +139,12 @@ func (g *Group) load(key string) (ByteView, error) {
 func (g *Group) loadLocally(key string) (ByteView, error) {
 	value, err := g.getter.Get(key)
 	if err != nil {
-		return ByteView{}, err
+		if g.emptyKeyDuration == 0 {
+			return ByteView{}, err
+		}
+		value = ByteView{
+			expire: time.Now().Add(g.emptyKeyDuration),
+		}
 	}
 	g.populateCache(key, value)
 	return value, nil

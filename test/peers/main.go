@@ -40,6 +40,7 @@ func main() {
 		}
 		return gcache.ByteView{}, fmt.Errorf("%s does not exist", key)
 	}))
+	g.SetEmptyWhenError(time.Minute)
 
 	// 启动api服务器
 	if api {
