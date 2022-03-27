@@ -142,6 +142,7 @@ func (g *Group) loadLocally(key string) (ByteView, error) {
 		if g.emptyKeyDuration == 0 {
 			return ByteView{}, err
 		}
+		// 走缓存空值机制
 		value = ByteView{
 			expire: time.Now().Add(g.emptyKeyDuration),
 		}
