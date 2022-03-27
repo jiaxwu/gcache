@@ -3,6 +3,8 @@ package gcache
 import (
 	"fmt"
 	"log"
+	"math"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -44,5 +46,15 @@ func TestGroup_Get(t *testing.T) {
 
 	if view, err := g.Get("unknown"); err == nil {
 		t.Fatalf("the value of key unknown should be empty, but %s got\n", view.String())
+	}
+}
+
+func BenchmarkGet(b *testing.B) {
+	b.ReportAllocs()
+	g := NewGroup("scores", math.MaxInt, GetterFunc(func(key string) (ByteView, error) {
+		return NewByteView([]byte(key), time.Time{}), nil
+	}))
+	for i := 0; i < b.N; i++ {
+		g.Get(strconv.Itoa(i))
 	}
 }
