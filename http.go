@@ -1,10 +1,12 @@
 package gcache
 
 import (
+	"context"
 	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/jiaxwu/gcache/consistenthash"
 	pb "github.com/jiaxwu/gcache/gcachepb"
+	"github.com/jiaxwu/gcache/naming"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -41,6 +43,48 @@ func NewHTTPPool(self string) *HTTPPool {
 
 func (p *HTTPPool) Log(format string, v ...interface{}) {
 	log.Printf("[Server %s] %s\n", p.self, fmt.Sprintf(format, v...))
+}
+
+// SetETCDNaming 设置etcd名字服务
+func (p *HTTPPool) SetETCDNaming(etcdAddrs ...string) error {
+	p.mu.Lock()
+	n, err := naming.New("gcahce/", etcdAddrs)
+	if err != nil {
+		return err
+	}
+	// 注册自己
+	if err := n.Register(context.Background(), p.self); err != nil {
+		return err
+	}
+	// 监听服务变化
+	watch := n.Watch(context.Background())
+	// 拉取所有同伴
+	peers, err := n.GetAddrs(context.Background())
+	if err != nil {
+		return err
+	}
+	p.peers = consistenthash.New(defaultReplicas, nil)
+	p.peers.Add(peers...)
+	p.httpGetters = make(map[string]*httpGetter, len(peers))
+	for _, peer := range peers {
+		p.httpGetters[peer] = &httpGetter{baseURL: peer + p.basePath}
+	}
+	p.mu.Unlock()
+	// 根据服务变化进行更新
+	go func() {
+		for event := range watch {
+			p.mu.Lock()
+			if event.AddAddr != "" {
+				p.peers.Add(event.AddAddr)
+				p.httpGetters[event.AddAddr] = &httpGetter{baseURL: event.AddAddr + p.basePath}
+			} else if event.DeleteAddr != "" {
+				p.peers.Delete(event.DeleteAddr)
+				delete(p.httpGetters, event.AddAddr)
+			}
+			p.mu.Unlock()
+		}
+	}()
+	return nil
 }
 
 // Set 更新同伴节点

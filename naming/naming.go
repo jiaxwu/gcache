@@ -1,20 +1,105 @@
-package register
+package naming
 
-//GO 如何 用 ETCD
-//我们在使用 ETCD 的时候 ，我们就直接把 ETCD 当做是一个配置中心即可 ，系统内的所有服务的配置都会在ETCD上进行管理
-//
-//有小伙伴会有疑问，那么 注册的服务实际配置信息改变了怎么办呢？
-//
-//ETCD 都给你想好了，我们是这样使用 ETCD 的
-//
-//我们服务启动的时候，会主动从 ETCD 上获取一次配置信息
-//
-//并且在 ETCD 节点上注册一个 Watcher 并等待
-//
-//那么以后自身服务配置信息改变的时候，ETCD 就会知道某个服务配置改变了，且会将该变动的情况通知到这个服务的订阅者
-//
-//这样子就达到了其他服务获取最新配置的目的了
+import (
+	"context"
+	"fmt"
+	"go.etcd.io/etcd/api/v3/mvccpb"
+	etcd "go.etcd.io/etcd/client/v3"
+	"sync"
+	"time"
+)
 
-// Register 服务注册与发现
-type Register struct {
+const (
+	// 续约间隔，单位秒
+	keepAliveTTL = 10
+	// 事件通道缓冲区大小
+	eventChanSize = 10
+)
+
+// Event 服务变化事件
+type Event struct {
+	AddAddr    string
+	DeleteAddr string
+}
+
+// Naming 名字服务
+type Naming struct {
+	// etcd服务器地址
+	endpoints []string
+	mu        sync.Mutex
+	client    *etcd.Client
+	// etcd名字服务key前缀
+	prefix string
+}
+
+func New(prefix string, endpoints []string) (*Naming, error) {
+	client, err := etcd.New(etcd.Config{
+		Endpoints:   endpoints,
+		DialTimeout: 5 * time.Second,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &Naming{
+		endpoints: endpoints,
+		client:    client,
+		prefix:    prefix,
+	}, nil
+}
+
+// Register 注册服务
+func (n *Naming) Register(ctx context.Context, addr string) error {
+	kv := etcd.NewKV(n.client)
+	lease := etcd.NewLease(n.client)
+	grant, err := lease.Grant(ctx, keepAliveTTL)
+	if err != nil {
+		return err
+	}
+	key := fmt.Sprintf("%s%s", n.prefix, addr)
+	if _, err := kv.Put(ctx, key, addr, etcd.WithLease(grant.ID)); err != nil {
+		return err
+	}
+	ch, err := lease.KeepAlive(ctx, grant.ID)
+	if err != nil {
+		return err
+	}
+	go func() {
+		for range ch {
+		}
+	}()
+	return nil
+}
+
+// GetAddrs 获取节点地址列表
+func (n *Naming) GetAddrs(ctx context.Context) ([]string, error) {
+	kv := etcd.NewKV(n.client)
+	resp, err := kv.Get(ctx, n.prefix, etcd.WithPrefix())
+	if err != nil {
+		return nil, err
+	}
+	addrs := make([]string, len(resp.Kvs))
+	for i, kv := range resp.Kvs {
+		addrs[i] = string(kv.Value)
+	}
+	return addrs, nil
+}
+
+// Watch 发现服务
+func (n *Naming) Watch(ctx context.Context) <-chan Event {
+	watcher := etcd.NewWatcher(n.client)
+	watchChan := watcher.Watch(ctx, n.prefix, etcd.WithPrefix())
+	ch := make(chan Event, eventChanSize)
+	go func() {
+		for watchRsp := range watchChan {
+			for _, event := range watchRsp.Events {
+				switch event.Type {
+				case mvccpb.PUT:
+					ch <- Event{AddAddr: string(event.Kv.Value)}
+				case mvccpb.DELETE:
+					ch <- Event{DeleteAddr: string(event.Kv.Key[len(n.prefix):])}
+				}
+			}
+		}
+	}()
+	return ch
 }

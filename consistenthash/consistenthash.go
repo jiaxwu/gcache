@@ -35,13 +35,31 @@ func New(replicas int, fn Hash) *Map {
 
 // Add 添加节点到一致性哈希里
 func (m *Map) Add(keys ...string) {
+	m.resetKeys(func(key string, hash int) {
+		m.hashMap[hash] = key
+	}, keys)
+}
+
+// Delete 从一致性哈希删除节点
+func (m *Map) Delete(keys ...string) {
+	m.resetKeys(func(_ string, hash int) {
+		delete(m.hashMap, hash)
+	}, keys)
+}
+
+// 重置keys
+func (m *Map) resetKeys(fn func(key string, hash int), keys []string) {
 	for _, key := range keys {
 		for i := 0; i < m.replicas; i++ {
 			hash := int(m.hash([]byte(strconv.Itoa(i) + key)))
-			m.keys = append(m.keys, hash)
-			m.hashMap[hash] = key
+			fn(key, hash)
 		}
 	}
+	newKeys := make([]int, 0, len(m.hashMap))
+	for key := range m.hashMap {
+		newKeys = append(newKeys, key)
+	}
+	m.keys = newKeys
 	sort.Ints(m.keys)
 }
 
