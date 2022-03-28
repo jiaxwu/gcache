@@ -100,6 +100,7 @@ func (n *Naming) Watch(ctx context.Context) <-chan Event {
 				}
 			}
 		}
+		close(ch)
 	}()
 	return ch
 }

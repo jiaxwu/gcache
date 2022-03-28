@@ -46,20 +46,20 @@ func (p *HTTPPool) Log(format string, v ...interface{}) {
 }
 
 // SetETCDNaming 设置etcd名字服务
-func (p *HTTPPool) SetETCDNaming(etcdAddrs ...string) error {
+func (p *HTTPPool) SetETCDNaming(ctx context.Context, etcdAddrs ...string) error {
 	p.mu.Lock()
 	n, err := naming.New("gcahce/", etcdAddrs)
 	if err != nil {
 		return err
 	}
 	// 注册自己
-	if err := n.Register(context.Background(), p.self); err != nil {
+	if err := n.Register(ctx, p.self); err != nil {
 		return err
 	}
 	// 监听服务变化
-	watch := n.Watch(context.Background())
+	watch := n.Watch(ctx)
 	// 拉取所有同伴
-	peers, err := n.GetAddrs(context.Background())
+	peers, err := n.GetAddrs(ctx)
 	if err != nil {
 		return err
 	}
@@ -72,16 +72,25 @@ func (p *HTTPPool) SetETCDNaming(etcdAddrs ...string) error {
 	p.mu.Unlock()
 	// 根据服务变化进行更新
 	go func() {
-		for event := range watch {
-			p.mu.Lock()
-			if event.AddAddr != "" {
-				p.peers.Add(event.AddAddr)
-				p.httpGetters[event.AddAddr] = &httpGetter{baseURL: event.AddAddr + p.basePath}
-			} else if event.DeleteAddr != "" {
-				p.peers.Delete(event.DeleteAddr)
-				delete(p.httpGetters, event.AddAddr)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case event, ok := <-watch:
+				// 通道已经被关闭
+				if !ok {
+					return
+				}
+				p.mu.Lock()
+				if event.AddAddr != "" {
+					p.peers.Add(event.AddAddr)
+					p.httpGetters[event.AddAddr] = &httpGetter{baseURL: event.AddAddr + p.basePath}
+				} else if event.DeleteAddr != "" {
+					p.peers.Delete(event.DeleteAddr)
+					delete(p.httpGetters, event.AddAddr)
+				}
+				p.mu.Unlock()
 			}
-			p.mu.Unlock()
 		}
 	}()
 	return nil
