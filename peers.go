@@ -11,4 +11,5 @@ type PeerGetter interface {
 // PeerPicker 用于获取远程节点的请求客户端
 type PeerPicker interface {
 	PickPeer(key string) (PeerGetter, bool)
+	GetAll() []PeerGetter
 }

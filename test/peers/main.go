@@ -80,7 +80,7 @@ func main() {
 		addrs = append(addrs, v)
 	}
 	pool.Set(addrs...)
-	pool.SetETCDNaming(context.Background(), "49.233.30.197:2379")
+	pool.SetETCDRegistry(context.Background(), "49.233.30.197:2379")
 	// 注册给group，这样group就可以从远程服务器获取缓存了
 	g.RegisterPeers(pool)
 	log.Fatalln(http.ListenAndServe(addr[7:], pool))

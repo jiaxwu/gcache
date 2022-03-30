@@ -100,9 +100,12 @@ func (g *Group) Get(key string) (ByteView, error) {
 // Remove 从缓存删除key
 func (g *Group) Remove(key string) error {
 	_, err, _ := g.loadGroup.Do(key, func() (interface{}, error) {
-		// 从远程删除
+		// 从目标远程节点删除
+		var owner PeerGetter
 		if g.peers != nil {
-			if peer, ok := g.peers.PickPeer(key); ok {
+			peer, ok := g.peers.PickPeer(key)
+			if ok {
+				owner = peer
 				if err := g.removeFromPeer(peer, key); err != nil {
 					return nil, err
 				}
@@ -110,6 +113,27 @@ func (g *Group) Remove(key string) error {
 		}
 		// 从本地缓存删除
 		g.removeLocally(key)
+		// 从其他远程节点删除
+		if g.peers != nil {
+			var wg sync.WaitGroup
+			var err error
+			for _, peer := range g.peers.GetAll() {
+				if peer == owner {
+					continue
+				}
+				wg.Add(1)
+				go func(peer PeerGetter) {
+					if err0 := g.removeFromPeer(peer, key); err0 != nil {
+						err = err0
+					}
+					wg.Done()
+				}(peer)
+			}
+			wg.Wait()
+			if err != nil {
+				return nil, err
+			}
+		}
 		return nil, nil
 	})
 	return err

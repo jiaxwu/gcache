@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/jiaxwu/gcache/naming"
+	"github.com/jiaxwu/gcache/registry"
 	"log"
 )
 
 func main() {
-	n, err := naming.New("gcache/", []string{"49.233.30.197:2379"})
+	n, err := registry.New("gcache/", []string{"49.233.30.197:2379"})
 	if err != nil {
 		log.Fatalln(err)
 	}

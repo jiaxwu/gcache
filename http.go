@@ -6,7 +6,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/jiaxwu/gcache/consistenthash"
 	pb "github.com/jiaxwu/gcache/gcachepb"
-	"github.com/jiaxwu/gcache/naming"
+	"github.com/jiaxwu/gcache/registry"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -45,21 +45,21 @@ func (p *HTTPPool) Log(format string, v ...interface{}) {
 	log.Printf("[Server %s] %s\n", p.self, fmt.Sprintf(format, v...))
 }
 
-// SetETCDNaming 设置etcd名字服务
-func (p *HTTPPool) SetETCDNaming(ctx context.Context, etcdAddrs ...string) error {
+// SetETCDRegistry 设置etcd名字服务
+func (p *HTTPPool) SetETCDRegistry(ctx context.Context, etcdAddrs ...string) error {
 	p.mu.Lock()
-	n, err := naming.New("gcahce/", etcdAddrs)
+	r, err := registry.New("gcahce/", etcdAddrs)
 	if err != nil {
 		return err
 	}
 	// 注册自己
-	if err := n.Register(ctx, p.self); err != nil {
+	if err := r.Register(ctx, p.self); err != nil {
 		return err
 	}
 	// 监听服务变化
-	watch := n.Watch(ctx)
+	watch := r.Watch(ctx)
 	// 拉取所有同伴
-	peers, err := n.GetAddrs(ctx)
+	peers, err := r.GetAddrs(ctx)
 	if err != nil {
 		return err
 	}
@@ -118,6 +118,20 @@ func (p *HTTPPool) PickPeer(key string) (PeerGetter, bool) {
 	}
 	p.Log("Pick peer %s", peer)
 	return p.httpGetters[peer], true
+}
+
+// GetAll 获取的远程节点客户端
+func (p *HTTPPool) GetAll() []PeerGetter {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	var getters []PeerGetter
+	for name, getter := range p.httpGetters {
+		if name == p.self {
+			continue
+		}
+		getters = append(getters, getter)
+	}
+	return getters
 }
 
 // ServeHTTP 处理所有http请求

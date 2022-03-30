@@ -1,4 +1,4 @@
-package naming
+package registry
 
 import (
 	"context"
@@ -22,8 +22,8 @@ type Event struct {
 	DeleteAddr string
 }
 
-// Naming 名字服务
-type Naming struct {
+// Registry 名字服务
+type Registry struct {
 	// etcd服务器地址
 	endpoints []string
 	mu        sync.Mutex
@@ -32,7 +32,7 @@ type Naming struct {
 	prefix string
 }
 
-func New(prefix string, endpoints []string) (*Naming, error) {
+func New(prefix string, endpoints []string) (*Registry, error) {
 	client, err := etcd.New(etcd.Config{
 		Endpoints:   endpoints,
 		DialTimeout: 5 * time.Second,
@@ -40,7 +40,7 @@ func New(prefix string, endpoints []string) (*Naming, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Naming{
+	return &Registry{
 		endpoints: endpoints,
 		client:    client,
 		prefix:    prefix,
@@ -48,14 +48,14 @@ func New(prefix string, endpoints []string) (*Naming, error) {
 }
 
 // Register 注册服务
-func (n *Naming) Register(ctx context.Context, addr string) error {
-	kv := etcd.NewKV(n.client)
-	lease := etcd.NewLease(n.client)
+func (r *Registry) Register(ctx context.Context, addr string) error {
+	kv := etcd.NewKV(r.client)
+	lease := etcd.NewLease(r.client)
 	grant, err := lease.Grant(ctx, keepAliveTTL)
 	if err != nil {
 		return err
 	}
-	key := fmt.Sprintf("%s%s", n.prefix, addr)
+	key := fmt.Sprintf("%s%s", r.prefix, addr)
 	if _, err := kv.Put(ctx, key, addr, etcd.WithLease(grant.ID)); err != nil {
 		return err
 	}
@@ -71,9 +71,9 @@ func (n *Naming) Register(ctx context.Context, addr string) error {
 }
 
 // GetAddrs 获取节点地址列表
-func (n *Naming) GetAddrs(ctx context.Context) ([]string, error) {
-	kv := etcd.NewKV(n.client)
-	resp, err := kv.Get(ctx, n.prefix, etcd.WithPrefix())
+func (r *Registry) GetAddrs(ctx context.Context) ([]string, error) {
+	kv := etcd.NewKV(r.client)
+	resp, err := kv.Get(ctx, r.prefix, etcd.WithPrefix())
 	if err != nil {
 		return nil, err
 	}
@@ -85,9 +85,9 @@ func (n *Naming) GetAddrs(ctx context.Context) ([]string, error) {
 }
 
 // Watch 发现服务
-func (n *Naming) Watch(ctx context.Context) <-chan Event {
-	watcher := etcd.NewWatcher(n.client)
-	watchChan := watcher.Watch(ctx, n.prefix, etcd.WithPrefix())
+func (r *Registry) Watch(ctx context.Context) <-chan Event {
+	watcher := etcd.NewWatcher(r.client)
+	watchChan := watcher.Watch(ctx, r.prefix, etcd.WithPrefix())
 	ch := make(chan Event, eventChanSize)
 	go func() {
 		for watchRsp := range watchChan {
@@ -96,7 +96,7 @@ func (n *Naming) Watch(ctx context.Context) <-chan Event {
 				case mvccpb.PUT:
 					ch <- Event{AddAddr: string(event.Kv.Value)}
 				case mvccpb.DELETE:
-					ch <- Event{DeleteAddr: string(event.Kv.Key[len(n.prefix):])}
+					ch <- Event{DeleteAddr: string(event.Kv.Key[len(r.prefix):])}
 				}
 			}
 		}
