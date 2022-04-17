@@ -6,8 +6,14 @@ import (
 	"time"
 )
 
+// 缓存算法对比：
+// LRU：最近最少使用。它很综合，如果数据最近很少被使用，那么就会被淘汰。它的实现很简单，使用map+双向链表。
+// LFU：最不经常使用。它根据访问次数来决定是否被淘汰，可能会存在某个一段时间很热的key在另外一段时间不那么热，却由于积累的访问次数过大而无法被淘汰。它的实现使用两个map+双向链表。https://juejin.cn/post/6987260805888606245#heading-2
+
 const (
 	expiresZSetKey = ""
+	// 每次移除过期键数量
+	removeExpireN = 10
 )
 
 // Cache LRU缓存
@@ -61,14 +67,6 @@ func (c *Cache) Get(key string) (Value, bool) {
 	return ent.value, true
 }
 
-// RemoveOldest 移除最近最少访问的数据
-func (c *Cache) RemoveOldest() {
-	front := c.ll.Front()
-	if front != nil {
-		c.removeElement(front)
-	}
-}
-
 // Add 添加数据到缓存
 func (c *Cache) Add(key string, value Value) {
 	if element, ok := c.cache[key]; ok {
@@ -92,8 +90,16 @@ func (c *Cache) Add(key string, value Value) {
 		// 没有则删除
 		c.expires.ZRem(expiresZSetKey, key)
 	}
+	// 淘汰过期的key
 	for c.maxBytes != 0 && c.nBytes > c.maxBytes {
-		c.RemoveOldest()
+		// 如果已经没有可以删除的过期键，则退出循环
+		if c.removeExpire(removeExpireN) > 0 {
+			break
+		}
+	}
+	// 淘汰最近最少访问的key
+	for c.maxBytes != 0 && c.nBytes > c.maxBytes {
+		c.removeOldest()
 	}
 }
 
@@ -107,6 +113,14 @@ func (c *Cache) Remove(key string) {
 // Len 返回数据数量
 func (c *Cache) Len() int {
 	return c.ll.Len()
+}
+
+// 移除最近最少访问的数据
+func (c *Cache) removeOldest() {
+	front := c.ll.Front()
+	if front != nil {
+		c.removeElement(front)
+	}
 }
 
 // 移除某个键，并删除链表里面的节点，减少lru缓存大小，删除过期时间，调用回调函数
@@ -124,16 +138,18 @@ func (c *Cache) removeElement(e *list.Element) {
 	}
 }
 
-// RemoveExpire 移除过期的键
-func (c *Cache) RemoveExpire(n int) {
+// 移除过期的键
+// 返回未删除的数量
+func (c *Cache) removeExpire(n int) int {
 	for n > 0 && c.expires.ZCard(expiresZSetKey) > 0 {
 		values := c.expires.ZRangeWithScores(expiresZSetKey, 0, 0)
 		key, expireNano := values[0].(string), values[1].(int64)
 		// 第一个键都没超时，结果循环
 		if expireNano > time.Now().UnixNano() {
-			return
+			break
 		}
 		c.Remove(key)
 		n--
 	}
+	return n
 }

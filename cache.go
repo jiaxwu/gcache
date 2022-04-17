@@ -5,11 +5,6 @@ import (
 	"sync"
 )
 
-const (
-	// 每次移除过期键数量
-	removeExpireN = 10
-)
-
 // 并发安全的缓存操作
 type cache struct {
 	mu         sync.Mutex
@@ -23,7 +18,6 @@ func (c *cache) add(key string, value ByteView) {
 	if c.lru == nil {
 		c.lru = lru.New(c.cacheBytes, nil)
 	}
-	c.lru.RemoveExpire(removeExpireN)
 	c.lru.Add(key, value)
 }
 
@@ -33,7 +27,6 @@ func (c *cache) get(key string) (ByteView, bool) {
 	if c.lru == nil {
 		return ByteView{}, false
 	}
-	c.lru.RemoveExpire(removeExpireN)
 	if v, ok := c.lru.Get(key); ok {
 		return v.(ByteView), ok
 	}
@@ -46,6 +39,5 @@ func (c *cache) remove(key string) {
 	if c.lru == nil {
 		return
 	}
-	c.lru.RemoveExpire(removeExpireN)
 	c.lru.Remove(key)
 }

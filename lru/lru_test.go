@@ -125,7 +125,7 @@ func TestCache_RemoveExpire(t *testing.T) {
 		t.Fatalf("get %v:%v failed, len=%d\n", k2, v2, lru.Len())
 	}
 	time.Sleep(time.Second * 2)
-	lru.RemoveExpire(10)
+	lru.removeExpire(10)
 	if _, ok := lru.Get(k1); !ok || lru.Len() != 1 {
 		t.Fatalf("remove expire keys failed, len=%d\n", lru.Len())
 	}
