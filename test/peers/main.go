@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"github.com/jiaxwu/gcache"
@@ -28,6 +27,7 @@ func main() {
 		port int
 		api  bool
 	)
+	// -poot=8001 -api=1
 	flag.IntVar(&port, "port", 8001, "Cache server port")
 	flag.BoolVar(&api, "api", false, "Start a api server?")
 	flag.Parse()
@@ -41,10 +41,12 @@ func main() {
 		}
 		return gcache.ByteView{}, fmt.Errorf("%s does not exist", key)
 	}))
+	g.SetHotCache(2 << 9)
 	g.SetEmptyWhenError(time.Minute)
 
 	// 启动api服务器
 	if api {
+		// curl http://localhost:9999/api?key=Tom
 		go func() {
 			apiServerAddr := "localhost:9999"
 			http.Handle("/api", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +82,7 @@ func main() {
 		addrs = append(addrs, v)
 	}
 	pool.Set(addrs...)
-	pool.SetETCDRegistry(context.Background(), "49.233.30.197:2379")
+	//pool.SetETCDRegistry(context.Background(), "49.233.30.197:2379")
 	// 注册给group，这样group就可以从远程服务器获取缓存了
 	g.RegisterPeers(pool)
 	log.Fatalln(http.ListenAndServe(addr[7:], pool))

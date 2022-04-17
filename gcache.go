@@ -25,7 +25,8 @@ func (f GetterFunc) Get(key string) (ByteView, error) {
 type Group struct {
 	name      string
 	getter    Getter
-	mainCache cache
+	mainCache *cache
+	hotCache  *cache
 	// 用于获取远程节点请求客户端
 	peers PeerPicker
 	// 避免对同一个key多次加载
@@ -53,7 +54,7 @@ func NewGroup(name string, cacheBytes int, getter Getter) *Group {
 	g := &Group{
 		name:   name,
 		getter: getter,
-		mainCache: cache{
+		mainCache: &cache{
 			cacheBytes: cacheBytes,
 		},
 		loadGroup:   &singleflight.Group{},
@@ -84,6 +85,16 @@ func (g *Group) SetEmptyWhenError(duration time.Duration) {
 	g.emptyKeyDuration = duration
 }
 
+// SetHotCache 设置远程节点Hot Key-Value的缓存，避免频繁请求远程节点
+func (g *Group) SetHotCache(cacheBytes int) {
+	if cacheBytes <= 0 {
+		panic("hot cache must be greater than 0")
+	}
+	g.hotCache = &cache{
+		cacheBytes: cacheBytes,
+	}
+}
+
 // Get 从缓存获取key对应的value
 func (g *Group) Get(key string) (ByteView, error) {
 	if key == "" {
@@ -91,8 +102,14 @@ func (g *Group) Get(key string) (ByteView, error) {
 	}
 
 	if v, ok := g.mainCache.get(key); ok {
-		log.Println("[Cache] hit")
+		log.Println("[Cache] main cache hit")
 		return v, nil
+	}
+	if g.hotCache != nil {
+		if v, ok := g.hotCache.get(key); ok {
+			log.Println("[Cache] hot cache hit")
+			return v, nil
+		}
 	}
 	return g.load(key)
 }
@@ -148,6 +165,7 @@ func (g *Group) load(key string) (ByteView, error) {
 			if peer, ok := g.peers.PickPeer(key); ok {
 				value, err := g.loadFromPeer(peer, key)
 				if err == nil {
+					g.populateCache(key, value, g.hotCache)
 					return value, nil
 				}
 				log.Printf("[Cache] failed to get from peer key=%s, err=%v\n", key, err)
@@ -174,18 +192,24 @@ func (g *Group) loadLocally(key string) (ByteView, error) {
 			expire: time.Now().Add(g.emptyKeyDuration),
 		}
 	}
-	g.populateCache(key, value)
+	g.populateCache(key, value, g.mainCache)
 	return value, nil
 }
 
 // 从本地节点删除缓存
 func (g *Group) removeLocally(key string) {
 	g.mainCache.remove(key)
+	if g.hotCache != nil {
+		g.hotCache.remove(key)
+	}
 }
 
 // 发布到缓存
-func (g *Group) populateCache(key string, value ByteView) {
-	g.mainCache.add(key, value)
+func (g *Group) populateCache(key string, value ByteView, cache *cache) {
+	if cache == nil {
+		return
+	}
+	cache.add(key, value)
 }
 
 // 从远程节点加载缓存值
