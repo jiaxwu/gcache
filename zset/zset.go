@@ -173,7 +173,7 @@ func (z *SortedSet) ZIncrBy(key string, increment int64, member string) int64 {
 }
 
 // ZRange returns the specified range of elements in the sorted set stored at <key>.
-func (z *SortedSet) ZRange(key string, start, stop int) []interface{} {
+func (z *SortedSet) ZRange(key string, start, stop int) []any {
 	if !z.exist(key) {
 		return nil
 	}
@@ -182,7 +182,7 @@ func (z *SortedSet) ZRange(key string, start, stop int) []interface{} {
 }
 
 // ZRangeWithScores returns the specified range of elements in the sorted set stored at <key>.
-func (z *SortedSet) ZRangeWithScores(key string, start, stop int) []interface{} {
+func (z *SortedSet) ZRangeWithScores(key string, start, stop int) []any {
 	if !z.exist(key) {
 		return nil
 	}
@@ -193,7 +193,7 @@ func (z *SortedSet) ZRangeWithScores(key string, start, stop int) []interface{} 
 // ZRevRange returns the specified range of elements in the sorted set stored at key.
 // The elements are considered to be ordered from the highest to the lowest score.
 // Descending lexicographical order is used for elements with equal score.
-func (z *SortedSet) ZRevRange(key string, start, stop int) []interface{} {
+func (z *SortedSet) ZRevRange(key string, start, stop int) []any {
 	if !z.exist(key) {
 		return nil
 	}
@@ -204,7 +204,7 @@ func (z *SortedSet) ZRevRange(key string, start, stop int) []interface{} {
 // ZRevRangeWithScores returns the specified range of elements in the sorted set stored at key.
 // The elements are considered to be ordered from the highest to the lowest score.
 // Descending lexicographical order is used for elements with equal score.
-func (z *SortedSet) ZRevRangeWithScores(key string, start, stop int) []interface{} {
+func (z *SortedSet) ZRevRangeWithScores(key string, start, stop int) []any {
 	if !z.exist(key) {
 		return nil
 	}
@@ -232,7 +232,7 @@ func (z *SortedSet) ZRem(key, member string) bool {
 // ZGetByRank 根据排名获取member及分值信息，从小到大排列遍历，即分值最低排名为0，依次类推
 // Get the member at key by rank, the rank is ordered from lowest to highest.
 // The rank of lowest is 0 and so on.
-func (z *SortedSet) ZGetByRank(key string, rank int) (val []interface{}) {
+func (z *SortedSet) ZGetByRank(key string, rank int) (val []any) {
 	if !z.exist(key) {
 		return
 	}
@@ -244,7 +244,7 @@ func (z *SortedSet) ZGetByRank(key string, rank int) (val []interface{}) {
 
 // ZRevGetByRank get the member at key by rank, the rank is ordered from highest to lowest.
 // The rank of highest is 0 and so on.
-func (z *SortedSet) ZRevGetByRank(key string, rank int) (val []interface{}) {
+func (z *SortedSet) ZRevGetByRank(key string, rank int) (val []any) {
 	if !z.exist(key) {
 		return
 	}
@@ -256,7 +256,7 @@ func (z *SortedSet) ZRevGetByRank(key string, rank int) (val []interface{}) {
 
 // ZScoreRange returns all the elements in the sorted set at key with a score between min and max (including elements with score equal to min or max).
 // The elements are considered to be ordered from low to high scores.
-func (z *SortedSet) ZScoreRange(key string, min, max int64) (val []interface{}) {
+func (z *SortedSet) ZScoreRange(key string, min, max int64) (val []any) {
 	if !z.exist(key) || min > max {
 		return
 	}
@@ -294,7 +294,7 @@ func (z *SortedSet) ZScoreRange(key string, min, max int64) (val []interface{}) 
 
 // ZRevScoreRange returns all the elements in the sorted set at key with a score between max and min (including elements with score equal to max or min).
 // In contrary to the default ordering of sorted sets, for this command the elements are considered to be ordered from high to low scores.
-func (z *SortedSet) ZRevScoreRange(key string, max, min int64) (val []interface{}) {
+func (z *SortedSet) ZRevScoreRange(key string, max, min int64) (val []any) {
 	if !z.exist(key) || max < min {
 		return
 	}
@@ -372,7 +372,7 @@ func (z *SortedSet) getByRank(key string, rank int64, reverse bool) (string, int
 	return node.member, node.score
 }
 
-func (z *SortedSet) findRange(key string, start, stop int64, reverse bool, withScores bool) (val []interface{}) {
+func (z *SortedSet) findRange(key string, start, stop int64, reverse bool, withScores bool) (val []any) {
 	skl := z.record[key].skl
 	length := skl.length
 

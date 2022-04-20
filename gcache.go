@@ -116,7 +116,7 @@ func (g *Group) Get(key string) (ByteView, error) {
 
 // Remove 从缓存删除key
 func (g *Group) Remove(key string) error {
-	_, err, _ := g.loadGroup.Do(key, func() (interface{}, error) {
+	_, err, _ := g.loadGroup.Do(key, func() (any, error) {
 		// 从目标远程节点删除
 		var owner PeerGetter
 		if g.peers != nil {
@@ -158,7 +158,7 @@ func (g *Group) Remove(key string) error {
 
 // 加载缓存
 func (g *Group) load(key string) (ByteView, error) {
-	view, err, _ := g.loadGroup.Do(key, func() (interface{}, error) {
+	view, err, _ := g.loadGroup.Do(key, func() (any, error) {
 		// 先判断是否需要从远程加载
 		if g.peers != nil {
 			// ok代表需要从远程加载

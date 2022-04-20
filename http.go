@@ -3,16 +3,17 @@ package gcache
 import (
 	"context"
 	"fmt"
-	"github.com/golang/protobuf/proto"
-	"github.com/jiaxwu/gcache/consistenthash"
-	pb "github.com/jiaxwu/gcache/gcachepb"
-	"github.com/jiaxwu/gcache/registry"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
+
+	"github.com/golang/protobuf/proto"
+	"github.com/jiaxwu/gcache/consistenthash"
+	pb "github.com/jiaxwu/gcache/gcachepb"
+	"github.com/jiaxwu/gcache/registry"
 )
 
 const (
@@ -41,7 +42,7 @@ func NewHTTPPool(self string) *HTTPPool {
 	}
 }
 
-func (p *HTTPPool) Log(format string, v ...interface{}) {
+func (p *HTTPPool) Log(format string, v ...any) {
 	log.Printf("[Server %s] %s\n", p.self, fmt.Sprintf(format, v...))
 }
 
